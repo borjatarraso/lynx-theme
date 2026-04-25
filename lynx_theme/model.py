@@ -66,7 +66,12 @@ class Style:
 
 
 # Public list of customisable area keys, in display order.
-AREAS: List[str] = [
+#
+# Some areas are only **advanced** — they're not surfaced by default in
+# the editor's compact view, but the user can opt into them via the
+# "Show advanced" toggle. They have sensible inherited defaults so the
+# theme works fine even if the user never touches them.
+BASIC_AREAS: List[str] = [
     "window",
     "panel",
     "heading",
@@ -83,6 +88,49 @@ AREAS: List[str] = [
     "button_secondary",
     "hero_marquee",
 ]
+
+ADVANCED_AREAS: List[str] = [
+    # Tables / panels
+    "table_header",
+    "table_border",
+    "table_row_alt",
+    "panel_border",
+    "scrollbar",
+    "tooltip",
+    # Status & badges
+    "status_bar",
+    "language_badge",
+    "tier_mega",
+    "tier_large",
+    "tier_mid",
+    "tier_small",
+    "tier_micro",
+    "tier_nano",
+    # Verdict / scoring
+    "verdict_strong_buy",
+    "verdict_buy",
+    "verdict_hold",
+    "verdict_caution",
+    "verdict_avoid",
+    # Charts / sparklines
+    "chart_positive",
+    "chart_negative",
+    "chart_neutral",
+    "chart_axis",
+    # Inputs & focus
+    "input_focus",
+    "selection",
+    "cursor",
+    "link",
+    # Icons (renderable in GUI; ignored in pure-text TUI)
+    "icon_apps",
+    "icon_agents",
+    "icon_about",
+    "icon_quit",
+]
+
+# Public ordered list combining both — used by callers that want every key.
+AREAS: List[str] = BASIC_AREAS + ADVANCED_AREAS
 
 # End-user-friendly labels for each area.
 AREA_LABELS: Dict[str, str] = {
@@ -101,6 +149,38 @@ AREA_LABELS: Dict[str, str] = {
     "button":             "Primary button",
     "button_secondary":   "Secondary button",
     "hero_marquee":       "Hero banner (marquee-capable)",
+    # Advanced
+    "table_header":       "Table header",
+    "table_border":       "Table border",
+    "table_row_alt":      "Alternating table row",
+    "panel_border":       "Panel border",
+    "scrollbar":          "Scrollbar",
+    "tooltip":            "Tooltip",
+    "status_bar":         "Status bar",
+    "language_badge":     "Language toggle badge",
+    "tier_mega":          "Tier badge — Mega",
+    "tier_large":         "Tier badge — Large",
+    "tier_mid":           "Tier badge — Mid",
+    "tier_small":         "Tier badge — Small",
+    "tier_micro":         "Tier badge — Micro",
+    "tier_nano":          "Tier badge — Nano",
+    "verdict_strong_buy": "Verdict — Strong Buy",
+    "verdict_buy":        "Verdict — Buy",
+    "verdict_hold":       "Verdict — Hold",
+    "verdict_caution":    "Verdict — Caution",
+    "verdict_avoid":      "Verdict — Avoid",
+    "chart_positive":     "Chart — positive series",
+    "chart_negative":     "Chart — negative series",
+    "chart_neutral":      "Chart — neutral series",
+    "chart_axis":         "Chart axis / gridlines",
+    "input_focus":        "Input field — focus ring",
+    "selection":          "Text selection",
+    "cursor":             "Caret / cursor",
+    "link":               "Hyperlink",
+    "icon_apps":          "Icon glyph — Apps",
+    "icon_agents":        "Icon glyph — Agents",
+    "icon_about":         "Icon glyph — About",
+    "icon_quit":          "Icon glyph — Quit",
 }
 
 AREA_DESCRIPTIONS: Dict[str, str] = {
@@ -119,6 +199,37 @@ AREA_DESCRIPTIONS: Dict[str, str] = {
     "button":             "Primary action button (Analyse, Compare, Save).",
     "button_secondary":   "Subtle button (Quit, Back, Cancel).",
     "hero_marquee":       "The top hero banner text. Marquee makes it scroll.",
+    "table_header":       "The header row of every Rich Table — bold cyan by default.",
+    "table_border":       "The frame around tables.",
+    "table_row_alt":      "Every other row's tint, for striped tables.",
+    "panel_border":       "The frame around Panels (Verdict, About, Tips).",
+    "scrollbar":          "The TUI / Tkinter scrollbar trough + thumb.",
+    "tooltip":            "Hover tooltips (e.g. on the language badge).",
+    "status_bar":         "Bottom status line in GUIs and TUIs.",
+    "language_badge":     "The bottom-right pill that shows EN / ES / IT / DE / FR / FA.",
+    "tier_mega":          "Mega-cap / Mega-fund tier badge colour.",
+    "tier_large":         "Large-cap / Large-fund tier badge colour.",
+    "tier_mid":           "Mid-cap / Mid-fund tier badge colour.",
+    "tier_small":         "Small-cap / Small-fund tier badge colour.",
+    "tier_micro":         "Micro-cap / Micro-fund tier badge colour.",
+    "tier_nano":          "Nano-cap / Nano-fund tier badge colour.",
+    "verdict_strong_buy": "The Strong Buy verdict pill / banner.",
+    "verdict_buy":        "The Buy verdict pill / banner.",
+    "verdict_hold":       "The Hold verdict pill / banner.",
+    "verdict_caution":    "The Caution verdict pill / banner.",
+    "verdict_avoid":      "The Avoid verdict pill / banner.",
+    "chart_positive":     "Sparkline / bar colour for positive returns.",
+    "chart_negative":     "Sparkline / bar colour for negative returns.",
+    "chart_neutral":      "Sparkline / bar colour for non-signed neutral data.",
+    "chart_axis":         "Chart axis lines and gridlines.",
+    "input_focus":        "The ring around a focused input field.",
+    "selection":          "Selected-text background.",
+    "cursor":             "Text-cursor colour.",
+    "link":               "Hyperlinks in About / Tips / docs.",
+    "icon_apps":          "Foreground colour applied to the dashboard's APP icon glyphs.",
+    "icon_agents":        "Foreground colour applied to the dashboard's AGENT icon glyphs.",
+    "icon_about":         "Foreground colour for the About-dialog icon.",
+    "icon_quit":          "Foreground colour for the Quit-button icon.",
 }
 
 
@@ -127,17 +238,82 @@ AREA_DESCRIPTIONS: Dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 @dataclass
+class IconGlyph:
+    """One customisable icon glyph (a Unicode character or short emoji)."""
+    glyph: str = ""                # the character, e.g. "📊"
+    color: str = "#cdd6f4"         # foreground colour for Tk
+    description: str = ""          # human-readable hint shown in the editor
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"glyph": self.glyph, "color": self.color,
+                 "description": self.description}
+
+    @classmethod
+    def from_dict(cls, d: Dict[str, Any]) -> "IconGlyph":
+        return cls(
+            glyph=str((d or {}).get("glyph", "")),
+            color=str((d or {}).get("color", "#cdd6f4")),
+            description=str((d or {}).get("description", "")),
+        )
+
+
+# Default glyph map — these are the fallbacks used when a theme doesn't
+# override anything. Editors can pick from this set or type any other
+# Unicode character.
+DEFAULT_ICON_GLYPHS: Dict[str, IconGlyph] = {
+    "apps":       IconGlyph(glyph="📊",  color="#89b4fa",
+                              description="Dashboard apps"),
+    "agents":     IconGlyph(glyph="🤖",  color="#cba6f7",
+                              description="Sector agents"),
+    "about":      IconGlyph(glyph="ℹ",   color="#a6adc8",
+                              description="About / info dialogs"),
+    "quit":       IconGlyph(glyph="✕",   color="#f38ba8",
+                              description="Quit / close buttons"),
+    "save":       IconGlyph(glyph="💾",  color="#a6e3a1",
+                              description="Save / export buttons"),
+    "load":       IconGlyph(glyph="📂",  color="#f9e2af",
+                              description="Load / import buttons"),
+    "search":     IconGlyph(glyph="🔍",  color="#94e2d5",
+                              description="Search input adornment"),
+    "warning":    IconGlyph(glyph="⚠",   color="#f9e2af",
+                              description="Warning rows in checklists"),
+    "error":      IconGlyph(glyph="✘",   color="#f38ba8",
+                              description="Error / fail rows"),
+    "success":    IconGlyph(glyph="✓",   color="#a6e3a1",
+                              description="Success / pass rows"),
+    "info":       IconGlyph(glyph="ⓘ",   color="#89b4fa",
+                              description="Info rows"),
+    "language":   IconGlyph(glyph="🌐",  color="#cdd6f4",
+                              description="Language toggle / picker"),
+}
+
+
+@dataclass
 class Theme:
     """A complete Suite theme."""
     name: str = "untitled"
     description: str = ""
     based_on: str = ""                      # original theme used for reference
     styles: Dict[str, Style] = field(default_factory=dict)
+    icons: Dict[str, IconGlyph] = field(default_factory=dict)
 
     # ── Read-only flag ──────────────────────────────────────────────────
     # Built-in / shipped themes are read-only; the editor never overwrites
     # them, only uses them as reference values for new themes.
     builtin: bool = False
+
+    # ── Theme-wide / advanced metadata (all optional) ───────────────────
+    author: str = ""                        # human-readable author name
+    tags: List[str] = field(default_factory=list)
+    spacing: int = 4                        # generic padding base
+    border_radius: int = 4                  # rounded-corner radius
+    line_height: float = 1.4                # line-height multiplier
+    monospace_family: str = "Noto Sans Mono"
+    rich_panel_box: str = "rounded"         # rounded / heavy / double
+    rtl_default: bool = False               # for FA themes
+    high_contrast: bool = False
+    reduced_motion: bool = False            # disables marquee / blink
+    extra: Dict[str, Any] = field(default_factory=dict)  # forward-compat
 
     # ── Conveniences ────────────────────────────────────────────────────
     def get(self, area: str) -> Style:
@@ -146,6 +322,15 @@ class Theme:
     def set(self, area: str, style: Style) -> None:
         self.styles[area] = style
 
+    def get_icon(self, key: str) -> IconGlyph:
+        """Return the icon for *key*, falling back to the package default."""
+        if key in self.icons:
+            return self.icons[key]
+        return DEFAULT_ICON_GLYPHS.get(key, IconGlyph())
+
+    def set_icon(self, key: str, icon: IconGlyph) -> None:
+        self.icons[key] = icon
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
@@ -153,18 +338,45 @@ class Theme:
             "based_on": self.based_on,
             "builtin": self.builtin,
             "styles": {k: v.to_dict() for k, v in self.styles.items()},
+            "icons": {k: v.to_dict() for k, v in self.icons.items()},
+            "author": self.author,
+            "tags": list(self.tags),
+            "spacing": self.spacing,
+            "border_radius": self.border_radius,
+            "line_height": self.line_height,
+            "monospace_family": self.monospace_family,
+            "rich_panel_box": self.rich_panel_box,
+            "rtl_default": self.rtl_default,
+            "high_contrast": self.high_contrast,
+            "reduced_motion": self.reduced_motion,
+            "extra": dict(self.extra),
         }
 
     @classmethod
     def from_dict(cls, d: Dict[str, Any]) -> "Theme":
-        styles_raw = (d or {}).get("styles") or {}
+        d = d or {}
+        styles_raw = d.get("styles") or {}
         styles = {k: Style.from_dict(v) for k, v in styles_raw.items()}
+        icons_raw = d.get("icons") or {}
+        icons = {k: IconGlyph.from_dict(v) for k, v in icons_raw.items()}
         return cls(
-            name=str((d or {}).get("name", "untitled")),
-            description=str((d or {}).get("description", "")),
-            based_on=str((d or {}).get("based_on", "")),
-            builtin=bool((d or {}).get("builtin", False)),
+            name=str(d.get("name", "untitled")),
+            description=str(d.get("description", "")),
+            based_on=str(d.get("based_on", "")),
+            builtin=bool(d.get("builtin", False)),
             styles=styles,
+            icons=icons,
+            author=str(d.get("author", "")),
+            tags=list(d.get("tags") or []),
+            spacing=int(d.get("spacing", 4) or 4),
+            border_radius=int(d.get("border_radius", 4) or 4),
+            line_height=float(d.get("line_height", 1.4) or 1.4),
+            monospace_family=str(d.get("monospace_family", "Noto Sans Mono")),
+            rich_panel_box=str(d.get("rich_panel_box", "rounded")),
+            rtl_default=bool(d.get("rtl_default", False)),
+            high_contrast=bool(d.get("high_contrast", False)),
+            reduced_motion=bool(d.get("reduced_motion", False)),
+            extra=dict(d.get("extra") or {}),
         )
 
     def to_json(self, indent: int = 2) -> str:

@@ -483,15 +483,103 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
              font=FONT_SMALL, fg=FG_DIM, bg=BG, wraplength=720,
              justify=tk.LEFT).pack(anchor="w", padx=14, pady=(0, 12))
 
+    # ── Basic areas (always visible) ────────────────────────────────────
+    from lynx_theme.model import BASIC_AREAS, ADVANCED_AREAS, IconGlyph, DEFAULT_ICON_GLYPHS
     rows: list[_AreaRow] = []
-    for area in AREAS:
-        # Make sure every area has a Style instance the row can mutate.
+    for area in BASIC_AREAS:
         if area not in state["theme"].styles:
             state["theme"].styles[area] = Style()
         row = _AreaRow(inner, area=area, style=state["theme"].styles[area],
                         on_change=lambda: _refresh_preview())
         row.pack(fill=tk.X, padx=14, pady=(8, 0))
         rows.append(row)
+
+    # ── Advanced areas (collapsible) ────────────────────────────────────
+    advanced_open = tk.BooleanVar(value=False)
+    advanced_frame = tk.Frame(inner, bg=BG)
+    advanced_header = tk.Frame(inner, bg=BG)
+    advanced_header.pack(fill=tk.X, padx=14, pady=(18, 6))
+    tk.Label(advanced_header, text="▼", font=FONT_SECTION,
+             fg=ACCENT, bg=BG).pack(side=tk.LEFT, padx=(0, 8))
+    tk.Label(advanced_header, text="Advanced areas",
+             font=FONT_SECTION, fg=ACCENT, bg=BG).pack(side=tk.LEFT)
+    tk.Label(advanced_header,
+             text=f"  ({len(ADVANCED_AREAS)} extras: tier badges, verdict pills, "
+                  "tables, charts, focus, links, icons …)",
+             font=FONT_SMALL, fg=FG_DIM, bg=BG).pack(side=tk.LEFT)
+
+    def _toggle_advanced(*_):
+        if advanced_open.get():
+            advanced_frame.pack_forget()
+            advanced_open.set(False)
+            advanced_header.winfo_children()[0].configure(text="▶")
+        else:
+            advanced_frame.pack(fill=tk.X, padx=0, pady=(0, 0), before=preview_wrap if False else None)
+            advanced_open.set(True)
+            advanced_header.winfo_children()[0].configure(text="▼")
+
+    for w in advanced_header.winfo_children():
+        w.bind("<Button-1>", _toggle_advanced)
+    advanced_header.bind("<Button-1>", _toggle_advanced)
+
+    advanced_rows: list[_AreaRow] = []
+    for area in ADVANCED_AREAS:
+        if area not in state["theme"].styles:
+            state["theme"].styles[area] = Style()
+        row = _AreaRow(advanced_frame, area=area,
+                        style=state["theme"].styles[area],
+                        on_change=lambda: _refresh_preview())
+        row.pack(fill=tk.X, padx=14, pady=(6, 0))
+        advanced_rows.append(row)
+
+    # ── Icon glyph customisation ────────────────────────────────────────
+    tk.Label(inner, text="Icon glyphs",
+             font=FONT_SECTION, fg=ACCENT, bg=BG).pack(anchor="w",
+                                                        padx=14, pady=(18, 6))
+    tk.Label(inner, text="Each entry controls a single Unicode glyph that "
+                          "appears across the Suite (apps grid, agents grid, "
+                          "checklist row icons, language badge, etc.).",
+             font=FONT_SMALL, fg=FG_DIM, bg=BG, wraplength=720,
+             justify=tk.LEFT).pack(anchor="w", padx=14, pady=(0, 12))
+
+    for icon_key, default_glyph in DEFAULT_ICON_GLYPHS.items():
+        # Ensure the theme has an entry we can mutate.
+        cur = state["theme"].icons.get(icon_key) or IconGlyph(
+            glyph=default_glyph.glyph,
+            color=default_glyph.color,
+            description=default_glyph.description,
+        )
+        state["theme"].icons[icon_key] = cur
+
+        row = tk.Frame(inner, bg=BG)
+        row.pack(fill=tk.X, padx=14, pady=(6, 0))
+
+        tk.Label(row, text=f"{icon_key}", font=FONT_BOLD,
+                 fg=FG, bg=BG, width=12, anchor="w").pack(side=tk.LEFT)
+
+        glyph_var = tk.StringVar(value=cur.glyph)
+        glyph_entry = tk.Entry(row, textvariable=glyph_var, width=4,
+                                bg=BG_INPUT, fg=FG, insertbackground=FG,
+                                font=(_FAMILY, 14), justify="center")
+        glyph_entry.pack(side=tk.LEFT, padx=(0, 8))
+
+        def _glyph_changed(_e=None, k=icon_key, v=glyph_var):
+            state["theme"].icons[k].glyph = v.get()
+            _refresh_preview()
+        glyph_entry.bind("<KeyRelease>", _glyph_changed)
+        glyph_entry.bind("<FocusOut>", _glyph_changed)
+
+        tk.Label(row, text="colour", font=FONT_SMALL,
+                 fg=FG_DIM, bg=BG).pack(side=tk.LEFT)
+        sw = _ColorSwatch(row, value=cur.color,
+                          on_change=lambda v, k=icon_key: (
+                              state["theme"].icons[k].__setattr__("color", v),
+                              _refresh_preview(),
+                          ))
+        sw.pack(side=tk.LEFT, padx=(2, 12))
+
+        tk.Label(row, text=cur.description, font=FONT_SMALL,
+                 fg=FG_DIM, bg=BG).pack(side=tk.LEFT, padx=(0, 8))
 
     # Preview column ----------------------------------------------------
     preview_wrap = tk.Frame(body, bg=BG, highlightthickness=1,
