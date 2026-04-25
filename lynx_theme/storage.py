@@ -153,31 +153,71 @@ def load_default_theme() -> Optional[Theme]:
 # Suite hook
 # ---------------------------------------------------------------------------
 
+def _to_textual_theme(theme: Theme):
+    """Convert a :class:`lynx_theme.model.Theme` to a textual ``Theme``.
+
+    Returns ``None`` if Textual isn't importable, so callers in pure-Tk
+    contexts can still use this helper.
+    """
+    try:
+        from textual.theme import Theme as TxTheme
+    except Exception:
+        return None
+    try:
+        return TxTheme(
+            name=theme.name,
+            primary=theme.get("hero_marquee").fg,
+            secondary=theme.get("subheading").fg,
+            accent=theme.get("metric_value").fg,
+            foreground=theme.get("window").fg,
+            background=theme.get("window").bg,
+            surface=theme.get("panel").bg,
+            panel=theme.get("panel").bg,
+            success=theme.get("success").fg,
+            warning=theme.get("warning").fg,
+            error=theme.get("error").fg,
+            dark=_is_dark(theme.get("window").bg),
+        )
+    except Exception:
+        return None
+
+
 def register_user_themes(app=None) -> Dict[str, Theme]:
-    """Return the user's theme dict. Pass an app object to also register
-    them as Textual themes if ``app.register_theme`` is available.
+    """Discover user-saved themes and register them everywhere.
+
+    * Returns the ``{name: Theme}`` dict of user themes (built-ins + user JSON).
+    * If ``app`` exposes ``register_theme`` (Textual ``App``), each theme is
+      registered there so the user can switch to it via the Textual command
+      palette / Ctrl+P.
+    * If :mod:`lynx_investor_core.gui_themes` is importable, every theme is
+      also registered with the Suite-wide Tk theme registry so the
+      ``ThemeCycler`` in any Suite GUI picks them up — same JSON file,
+      same name, available everywhere.
+
+    Safe to call multiple times — duplicate names are silently ignored.
     """
     out: Dict[str, Theme] = {}
+
+    # Bridge into the Suite-wide Tk theme registry once per process.
+    register_gui = None
+    try:
+        from lynx_investor_core.gui_themes import register_gui_themes as register_gui
+    except Exception:
+        register_gui = None
+
     for theme in list_themes():
         out[theme.name] = theme
+        tx = _to_textual_theme(theme)
+        if tx is None:
+            continue
         if app is not None and hasattr(app, "register_theme"):
             try:
-                from textual.theme import Theme as TxTheme
-                tx = TxTheme(
-                    name=theme.name,
-                    primary=theme.get("hero_marquee").fg,
-                    secondary=theme.get("subheading").fg,
-                    accent=theme.get("metric_value").fg,
-                    foreground=theme.get("window").fg,
-                    background=theme.get("window").bg,
-                    surface=theme.get("panel").bg,
-                    panel=theme.get("panel").bg,
-                    success=theme.get("success").fg,
-                    warning=theme.get("warning").fg,
-                    error=theme.get("error").fg,
-                    dark=_is_dark(theme.get("window").bg),
-                )
                 app.register_theme(tx)
+            except Exception:
+                pass
+        if register_gui is not None:
+            try:
+                register_gui(tx)
             except Exception:
                 pass
     return out
