@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name            = "lynx-theme"
+version = "6.0.0"
+description     = "Lynx Theme — visual theme editor for the Lince Investor Suite (GUI + TUI)"
+readme          = "README.md"
+requires-python = ">=3.10"
+license         = {text = "BSD-3-Clause"}
+authors         = [{name = "Borja Tarraso", email = "borja.tarraso@member.fsf.org"}]
+keywords        = ["theme", "editor", "tkinter", "textual", "colors", "fonts"]
+classifiers     = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: BSD License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies    = [
+    "lynx-investor-core>=6.0.0",
+    "rich>=13.7",
+    "textual>=0.50",
+    "argcomplete>=3.0",
+]
+
+[project.urls]
+Homepage   = "https://github.com/borjatarraso/lynx-theme"
+Repository = "https://github.com/borjatarraso/lynx-theme"
+Issues     = "https://github.com/borjatarraso/lynx-theme/issues"
+Changelog  = "https://github.com/borjatarraso/lynx-theme/blob/main/CHANGELOG.md"
+
+[project.scripts]
+lynx-theme = "lynx_theme.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["lynx_theme*"]
+
+[tool.setuptools.package-data]
+lynx_theme = ["img/*.png", "img/*.txt"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
