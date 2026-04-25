@@ -419,6 +419,12 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
                                    lambda: _on_set_default())
     btn_preview = _toolbar_btn("👁  Live Preview Window",
                                lambda: _open_preview_window())
+    btn_icons = _toolbar_btn("🖼  Icon Gallery",
+                              lambda: _open_icon_gallery())
+    btn_palette = _toolbar_btn("🎨  Palettes",
+                                lambda: _open_palette_gallery())
+    btn_fonts = _toolbar_btn("🅰  Font Preview",
+                              lambda: _open_font_gallery())
     btn_about = _toolbar_btn("About", lambda: _show_about(root))
     btn_quit = _toolbar_btn("Quit", root.quit)
 
@@ -542,6 +548,7 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
              font=FONT_SMALL, fg=FG_DIM, bg=BG, wraplength=720,
              justify=tk.LEFT).pack(anchor="w", padx=14, pady=(0, 12))
 
+    icon_widgets: dict = {}
     for icon_key, default_glyph in DEFAULT_ICON_GLYPHS.items():
         # Ensure the theme has an entry we can mutate.
         cur = state["theme"].icons.get(icon_key) or IconGlyph(
@@ -569,6 +576,11 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
         glyph_entry.bind("<KeyRelease>", _glyph_changed)
         glyph_entry.bind("<FocusOut>", _glyph_changed)
 
+        def _pick_icon(k=icon_key, v=glyph_var):
+            _open_icon_gallery(target_key=k, target_var=v)
+        ttk.Button(row, text="Pick…", style="Subtle.TButton",
+                   command=_pick_icon).pack(side=tk.LEFT, padx=(0, 8))
+
         tk.Label(row, text="colour", font=FONT_SMALL,
                  fg=FG_DIM, bg=BG).pack(side=tk.LEFT)
         sw = _ColorSwatch(row, value=cur.color,
@@ -577,6 +589,8 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
                               _refresh_preview(),
                           ))
         sw.pack(side=tk.LEFT, padx=(2, 12))
+
+        icon_widgets[icon_key] = {"glyph_var": glyph_var, "swatch": sw}
 
         tk.Label(row, text=cur.description, font=FONT_SMALL,
                  fg=FG_DIM, bg=BG).pack(side=tk.LEFT, padx=(0, 8))
@@ -756,12 +770,337 @@ def run_gui(initial_theme: Optional[str] = None) -> int:
                              f"'{state['theme'].name}' will load on Suite startup.",
                              parent=root)
 
+    # ── Gallery dialogs ────────────────────────────────────────────────
+    from lynx_theme.galleries import (
+        ICON_GALLERY, COLOR_PALETTES, FONT_SAMPLE_SENTENCE,
+        order_fonts, search_icons,
+    )
+
+    def _open_icon_gallery(target_key: Optional[str] = None,
+                            target_var: Optional[tk.StringVar] = None):
+        """Browse the curated Unicode icon catalog and apply a selection.
+
+        If *target_key* is given, the chosen glyph is written into the
+        matching icon row's Entry. Otherwise we just copy the glyph to the
+        clipboard so the user can paste it anywhere.
+        """
+        win = tk.Toplevel(root)
+        win.title("Icon gallery")
+        win.configure(bg=BG)
+        win.geometry("760x620")
+        win.transient(root)
+
+        header = tk.Frame(win, bg=BG)
+        header.pack(fill=tk.X, padx=14, pady=(12, 6))
+        tk.Label(header, text="🖼  Icon gallery",
+                 font=FONT_SECTION, fg=ACCENT, bg=BG).pack(side=tk.LEFT)
+        if target_key:
+            tk.Label(header, text=f"  · pick a glyph for ‘{target_key}’",
+                     font=FONT_SMALL, fg=FG_DIM, bg=BG).pack(side=tk.LEFT)
+        else:
+            tk.Label(header,
+                     text="  · click any glyph to copy it to the clipboard",
+                     font=FONT_SMALL, fg=FG_DIM, bg=BG).pack(side=tk.LEFT)
+
+        # Search box
+        search_var = tk.StringVar()
+        search_row = tk.Frame(win, bg=BG)
+        search_row.pack(fill=tk.X, padx=14, pady=(0, 8))
+        tk.Label(search_row, text="🔍", fg=FG, bg=BG,
+                 font=FONT).pack(side=tk.LEFT, padx=(0, 6))
+        entry = tk.Entry(search_row, textvariable=search_var,
+                          bg=BG_INPUT, fg=FG, insertbackground=FG,
+                          font=FONT, relief="flat",
+                          highlightthickness=1, highlightbackground=BORDER)
+        entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        # Scrollable body
+        body_wrap = tk.Frame(win, bg=BG, highlightthickness=1,
+                              highlightbackground=BORDER)
+        body_wrap.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 10))
+        canvas = tk.Canvas(body_wrap, bg=BG, highlightthickness=0)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb = ttk.Scrollbar(body_wrap, orient=tk.VERTICAL, command=canvas.yview)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=sb.set)
+        inner_g = tk.Frame(canvas, bg=BG)
+        inner_id_g = canvas.create_window((0, 0), window=inner_g, anchor="nw")
+        inner_g.bind("<Configure>",
+                      lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                     lambda e: canvas.itemconfigure(inner_id_g, width=e.width))
+
+        status_g = tk.StringVar(value="")
+        tk.Label(win, textvariable=status_g, font=FONT_SMALL,
+                 fg=FG_DIM, bg=BG, anchor="w").pack(fill=tk.X, padx=14,
+                                                     pady=(0, 10))
+
+        def _apply(glyph: str):
+            if target_key and target_var is not None:
+                target_var.set(glyph)
+                state["theme"].icons[target_key].glyph = glyph
+                _refresh_preview()
+                status_g.set(f"Applied {glyph} → {target_key}")
+                win.after(400, win.destroy)
+            else:
+                try:
+                    win.clipboard_clear()
+                    win.clipboard_append(glyph)
+                    status_g.set(f"Copied {glyph} to clipboard.")
+                except tk.TclError:
+                    status_g.set(f"Selected {glyph}")
+
+        def _render(filter_text: str = ""):
+            for w in list(inner_g.winfo_children()):
+                w.destroy()
+            ft = filter_text.strip().lower()
+            shown = 0
+            for category, entries in ICON_GALLERY.items():
+                # Filter within the category.
+                if ft:
+                    matches = [
+                        e for e in entries
+                        if ft in (
+                            e.name + " " + " ".join(e.keywords) + " " + e.glyph
+                        ).lower()
+                    ]
+                else:
+                    matches = entries
+                if not matches:
+                    continue
+                tk.Label(inner_g, text=category,
+                         font=FONT_SECTION, fg=ACCENT,
+                         bg=BG).pack(anchor="w", padx=10, pady=(10, 4))
+                grid = tk.Frame(inner_g, bg=BG)
+                grid.pack(fill=tk.X, padx=8)
+                cols = 12
+                for i, entry_obj in enumerate(matches):
+                    r, c = divmod(i, cols)
+                    cell = tk.Frame(grid, bg=BG_CARD, highlightthickness=1,
+                                     highlightbackground=BORDER)
+                    cell.grid(row=r, column=c, padx=3, pady=3, sticky="nsew")
+                    btn = tk.Label(cell, text=entry_obj.glyph,
+                                    bg=BG_CARD, fg=FG,
+                                    font=(_FAMILY, 18), padx=6, pady=4,
+                                    cursor="hand2")
+                    btn.pack()
+                    tk.Label(cell, text=entry_obj.name,
+                             font=(_FAMILY, 8), fg=FG_DIM,
+                             bg=BG_CARD).pack(pady=(0, 2))
+                    glyph_val = entry_obj.glyph
+                    btn.bind("<Button-1>",
+                              lambda _e, g=glyph_val: _apply(g))
+                    cell.bind("<Button-1>",
+                               lambda _e, g=glyph_val: _apply(g))
+                    shown += 1
+            if shown == 0:
+                tk.Label(inner_g, text="No icons match that filter.",
+                         font=FONT_SMALL, fg=FG_DIM,
+                         bg=BG).pack(padx=10, pady=20)
+
+        search_var.trace_add("write", lambda *_: _render(search_var.get()))
+        _render("")
+
+        ttk.Button(win, text="Close", style="Subtle.TButton",
+                   command=win.destroy).pack(pady=(0, 12))
+        win.bind("<Escape>", lambda _e: win.destroy())
+
+    def _open_palette_gallery(target_swatch: Optional["_ColorSwatch"] = None):
+        """Show curated colour palettes; click to copy or apply."""
+        win = tk.Toplevel(root)
+        win.title("Colour palettes")
+        win.configure(bg=BG)
+        win.geometry("820x680")
+        win.transient(root)
+
+        tk.Label(win, text="🎨  Colour palettes",
+                 font=FONT_SECTION, fg=ACCENT,
+                 bg=BG).pack(anchor="w", padx=14, pady=(12, 4))
+        tk.Label(win,
+                 text="Click any swatch to copy its hex code. "
+                      "Use a colour swatch button in a row to apply directly.",
+                 font=FONT_SMALL, fg=FG_DIM,
+                 bg=BG).pack(anchor="w", padx=14, pady=(0, 8))
+
+        body_wrap = tk.Frame(win, bg=BG, highlightthickness=1,
+                              highlightbackground=BORDER)
+        body_wrap.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 10))
+        canvas = tk.Canvas(body_wrap, bg=BG, highlightthickness=0)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb = ttk.Scrollbar(body_wrap, orient=tk.VERTICAL, command=canvas.yview)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=sb.set)
+        inner_p = tk.Frame(canvas, bg=BG)
+        inner_id_p = canvas.create_window((0, 0), window=inner_p, anchor="nw")
+        inner_p.bind("<Configure>",
+                      lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                     lambda e: canvas.itemconfigure(inner_id_p, width=e.width))
+
+        status_p = tk.StringVar(value="")
+        tk.Label(win, textvariable=status_p, font=FONT_SMALL,
+                 fg=FG_DIM, bg=BG, anchor="w").pack(fill=tk.X, padx=14,
+                                                     pady=(0, 10))
+
+        def _copy(hex_code: str):
+            if target_swatch is not None:
+                target_swatch.set(hex_code)
+                status_p.set(f"Applied {hex_code}.")
+                _refresh_preview()
+                win.after(300, win.destroy)
+                return
+            try:
+                win.clipboard_clear()
+                win.clipboard_append(hex_code)
+                status_p.set(f"Copied {hex_code} to clipboard.")
+            except tk.TclError:
+                status_p.set(f"Selected {hex_code}")
+
+        for palette_name, swatches in COLOR_PALETTES.items():
+            tk.Label(inner_p, text=palette_name,
+                     font=FONT_SECTION, fg=ACCENT,
+                     bg=BG).pack(anchor="w", padx=10, pady=(10, 4))
+            grid = tk.Frame(inner_p, bg=BG)
+            grid.pack(fill=tk.X, padx=8)
+            cols = 8
+            for i, sw_def in enumerate(swatches):
+                r, c = divmod(i, cols)
+                cell = tk.Frame(grid, bg=BG_CARD, highlightthickness=1,
+                                 highlightbackground=BORDER)
+                cell.grid(row=r, column=c, padx=3, pady=3, sticky="nsew")
+                chip = tk.Label(cell, text="     ", bg=sw_def.hex,
+                                 cursor="hand2",
+                                 relief="flat", padx=24, pady=10)
+                chip.pack(padx=4, pady=(4, 2))
+                tk.Label(cell, text=sw_def.name,
+                         font=(_FAMILY, 9, "bold"), fg=FG,
+                         bg=BG_CARD).pack()
+                tk.Label(cell, text=sw_def.hex,
+                         font=(_FAMILY, 8), fg=FG_DIM,
+                         bg=BG_CARD).pack(pady=(0, 4))
+                hex_val = sw_def.hex
+                chip.bind("<Button-1>", lambda _e, h=hex_val: _copy(h))
+                cell.bind("<Button-1>", lambda _e, h=hex_val: _copy(h))
+
+        ttk.Button(win, text="Close", style="Subtle.TButton",
+                   command=win.destroy).pack(pady=(0, 12))
+        win.bind("<Escape>", lambda _e: win.destroy())
+
+    def _open_font_gallery():
+        """Render every available font with the same example sentence."""
+        win = tk.Toplevel(root)
+        win.title("Font preview")
+        win.configure(bg=BG)
+        win.geometry("900x680")
+        win.transient(root)
+
+        tk.Label(win, text="🅰  Font preview",
+                 font=FONT_SECTION, fg=ACCENT,
+                 bg=BG).pack(anchor="w", padx=14, pady=(12, 4))
+        tk.Label(win,
+                 text="Each row uses the same sample text in a different "
+                      "font, so you can compare at a glance. "
+                      "Click any row to copy that family name to the clipboard.",
+                 font=FONT_SMALL, fg=FG_DIM,
+                 bg=BG, wraplength=820,
+                 justify="left").pack(anchor="w", padx=14, pady=(0, 8))
+
+        # Filter
+        filter_var = tk.StringVar()
+        f_row = tk.Frame(win, bg=BG)
+        f_row.pack(fill=tk.X, padx=14, pady=(0, 8))
+        tk.Label(f_row, text="🔍", fg=FG, bg=BG,
+                 font=FONT).pack(side=tk.LEFT, padx=(0, 6))
+        f_entry = tk.Entry(f_row, textvariable=filter_var,
+                           bg=BG_INPUT, fg=FG, insertbackground=FG,
+                           font=FONT, relief="flat",
+                           highlightthickness=1, highlightbackground=BORDER)
+        f_entry.pack(side=tk.LEFT, fill=tk.X, expand=True)
+
+        body_wrap = tk.Frame(win, bg=BG, highlightthickness=1,
+                              highlightbackground=BORDER)
+        body_wrap.pack(fill=tk.BOTH, expand=True, padx=14, pady=(0, 10))
+        canvas = tk.Canvas(body_wrap, bg=BG, highlightthickness=0)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        sb = ttk.Scrollbar(body_wrap, orient=tk.VERTICAL, command=canvas.yview)
+        sb.pack(side=tk.RIGHT, fill=tk.Y)
+        canvas.configure(yscrollcommand=sb.set)
+        inner_f = tk.Frame(canvas, bg=BG)
+        inner_id_f = canvas.create_window((0, 0), window=inner_f, anchor="nw")
+        inner_f.bind("<Configure>",
+                      lambda _e: canvas.configure(scrollregion=canvas.bbox("all")))
+        canvas.bind("<Configure>",
+                     lambda e: canvas.itemconfigure(inner_id_f, width=e.width))
+
+        status_f = tk.StringVar(value="")
+        tk.Label(win, textvariable=status_f, font=FONT_SMALL,
+                 fg=FG_DIM, bg=BG, anchor="w").pack(fill=tk.X, padx=14,
+                                                     pady=(0, 10))
+
+        def _copy_family(fam: str):
+            try:
+                win.clipboard_clear()
+                win.clipboard_append(fam)
+                status_f.set(f"Copied font family: {fam}")
+            except tk.TclError:
+                status_f.set(f"Selected: {fam}")
+
+        all_fams = order_fonts(_available_fonts())
+
+        def _render(filter_text: str = ""):
+            for w in list(inner_f.winfo_children()):
+                w.destroy()
+            ft = filter_text.strip().lower()
+            shown = 0
+            for fam in all_fams:
+                if ft and ft not in fam.lower():
+                    continue
+                row_w = tk.Frame(inner_f, bg=BG_CARD,
+                                  highlightthickness=1,
+                                  highlightbackground=BORDER)
+                row_w.pack(fill=tk.X, padx=8, pady=3)
+                tk.Label(row_w, text=fam,
+                         font=(_FAMILY, 10, "bold"),
+                         fg=ACCENT, bg=BG_CARD,
+                         width=22, anchor="w").pack(side=tk.LEFT,
+                                                     padx=(8, 12), pady=6)
+                try:
+                    sample_font = (fam, 13)
+                    sample = tk.Label(row_w, text=FONT_SAMPLE_SENTENCE,
+                                       font=sample_font,
+                                       fg=FG, bg=BG_CARD, anchor="w",
+                                       cursor="hand2")
+                except tk.TclError:
+                    sample = tk.Label(row_w, text=FONT_SAMPLE_SENTENCE,
+                                       fg=FG, bg=BG_CARD, anchor="w")
+                sample.pack(side=tk.LEFT, fill=tk.X, expand=True,
+                            padx=(0, 8), pady=6)
+                sample.bind("<Button-1>",
+                             lambda _e, f=fam: _copy_family(f))
+                row_w.bind("<Button-1>",
+                            lambda _e, f=fam: _copy_family(f))
+                shown += 1
+            if shown == 0:
+                tk.Label(inner_f, text="No font families match that filter.",
+                         font=FONT_SMALL, fg=FG_DIM,
+                         bg=BG).pack(padx=10, pady=20)
+
+        filter_var.trace_add("write", lambda *_: _render(filter_var.get()))
+        _render("")
+
+        ttk.Button(win, text="Close", style="Subtle.TButton",
+                   command=win.destroy).pack(pady=(0, 12))
+        win.bind("<Escape>", lambda _e: win.destroy())
+
     # Keyboard shortcuts
     root.bind_all("<Control-q>", lambda _e: root.quit())
     root.bind_all("<Control-s>", lambda _e: _on_save_as())
     root.bind_all("<Control-d>", lambda _e: _on_set_default())
     root.bind_all("<Control-l>", lambda _e: _on_load())
     root.bind_all("<Control-p>", lambda _e: _open_preview_window())
+    root.bind_all("<Control-i>", lambda _e: _open_icon_gallery())
+    root.bind_all("<Control-k>", lambda _e: _open_palette_gallery())
+    root.bind_all("<Control-f>", lambda _e: _open_font_gallery())
 
     # Language toggle in the bottom-right corner.
     try:
