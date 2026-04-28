@@ -199,11 +199,20 @@ def register_user_themes(app=None) -> Dict[str, Theme]:
     out: Dict[str, Theme] = {}
 
     # Bridge into the Suite-wide Tk theme registry once per process.
-    register_gui = None
+    # Built-in palettes go through ``register_gui_themes`` (so they sit in
+    # the existing _EXTRA_THEMES bucket) and user-saved JSON themes go
+    # through ``register_user_gui_themes`` so every Suite GUI can list
+    # them separately under a "Custom" submenu.
+    register_extra = None
+    register_user = None
     try:
-        from lynx_investor_core.gui_themes import register_gui_themes as register_gui
+        from lynx_investor_core.gui_themes import (
+            register_gui_themes as register_extra,
+            register_user_gui_themes as register_user,
+        )
     except Exception:
-        register_gui = None
+        register_extra = None
+        register_user = None
 
     for theme in list_themes():
         out[theme.name] = theme
@@ -215,9 +224,14 @@ def register_user_themes(app=None) -> Dict[str, Theme]:
                 app.register_theme(tx)
             except Exception:
                 pass
-        if register_gui is not None:
+        # User-saved themes (from $XDG_CONFIG_HOME/lynx-theme/themes/*.json)
+        # are flagged as ``builtin=False``. The built-in references like
+        # "lynx-mocha" stay in the EXTRA bucket so the existing menus and
+        # cycle order don't change.
+        target = register_user if not theme.builtin else register_extra
+        if target is not None:
             try:
-                register_gui(tx)
+                target(tx)
             except Exception:
                 pass
     return out
