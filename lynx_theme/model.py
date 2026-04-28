@@ -87,6 +87,13 @@ BASIC_AREAS: List[str] = [
     "button",
     "button_secondary",
     "hero_marquee",
+    # Sign-coloured value slots — the +X / -X / X numbers shown in
+    # lynx-portfolio P&L lines, gain/loss columns, etc. Surfaced in the
+    # editor's main view so users can tune their portfolio's "I'm up /
+    # down / flat" feel without diving into Advanced.
+    "value_positive",
+    "value_negative",
+    "value_neutral",
 ]
 
 ADVANCED_AREAS: List[str] = [
@@ -149,6 +156,9 @@ AREA_LABELS: Dict[str, str] = {
     "button":             "Primary button",
     "button_secondary":   "Secondary button",
     "hero_marquee":       "Hero banner (marquee-capable)",
+    "value_positive":     "Positive value (+ signed numbers)",
+    "value_negative":     "Negative value (− signed numbers)",
+    "value_neutral":      "Neutral value (unsigned price / count)",
     # Advanced
     "table_header":       "Table header",
     "table_border":       "Table border",
@@ -199,6 +209,9 @@ AREA_DESCRIPTIONS: Dict[str, str] = {
     "button":             "Primary action button (Analyse, Compare, Save).",
     "button_secondary":   "Subtle button (Quit, Back, Cancel).",
     "hero_marquee":       "The top hero banner text. Marquee makes it scroll.",
+    "value_positive":     "Foreground used for + signed numbers in P&L, gain columns, % change.",
+    "value_negative":     "Foreground used for − signed numbers in P&L, loss columns, % change.",
+    "value_neutral":      "Foreground for unsigned numbers (price, count, ratios) where direction doesn't apply.",
     "table_header":       "The header row of every Rich Table — bold cyan by default.",
     "table_border":       "The frame around tables.",
     "table_row_alt":      "Every other row's tint, for striped tables.",
@@ -440,6 +453,9 @@ def _mocha() -> Theme:
             "button_secondary":  Style(fg="#cdd6f4", bg="#45475a"),
             "hero_marquee":      Style(fg="#89b4fa", bg="#1e1e2e",
                                        bold=True, font_size=20, align="center"),
+            "value_positive":    Style(fg="#a6e3a1", bg="#1e1e2e", bold=True, align="right"),
+            "value_negative":    Style(fg="#f38ba8", bg="#1e1e2e", bold=True, align="right"),
+            "value_neutral":     Style(fg="#cdd6f4", bg="#1e1e2e", align="right"),
         },
     )
 
@@ -467,6 +483,9 @@ def _latte() -> Theme:
             "button_secondary":  Style(fg="#4c4f69", bg="#ccd0da"),
             "hero_marquee":      Style(fg="#1e66f5", bg="#eff1f5",
                                        bold=True, font_size=20, align="center"),
+            "value_positive":    Style(fg="#40a02b", bg="#eff1f5", bold=True, align="right"),
+            "value_negative":    Style(fg="#d20f39", bg="#eff1f5", bold=True, align="right"),
+            "value_neutral":     Style(fg="#4c4f69", bg="#eff1f5", align="right"),
         },
     )
 
@@ -494,6 +513,9 @@ def _high_contrast() -> Theme:
             "button_secondary":  Style(fg="#ffffff", bg="#404040"),
             "hero_marquee":      Style(fg="#ffff00", bg="#000000",
                                        bold=True, font_size=22, align="center"),
+            "value_positive":    Style(fg="#00ff00", bg="#000000", bold=True, align="right"),
+            "value_negative":    Style(fg="#ff4040", bg="#000000", bold=True, align="right"),
+            "value_neutral":     Style(fg="#ffffff", bg="#000000", bold=True, align="right"),
         },
     )
 

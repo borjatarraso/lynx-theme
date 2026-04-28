@@ -150,6 +150,43 @@ def load_default_theme() -> Optional[Theme]:
 
 
 # ---------------------------------------------------------------------------
+# Sign-coloured value palette
+# ---------------------------------------------------------------------------
+
+def value_palette() -> Dict[str, str]:
+    """Return ``{positive, negative, neutral}`` colours from the default theme.
+
+    Used by callers (e.g. lynx-portfolio) that paint signed numbers — gain /
+    loss / unsigned — and want them to follow the user's chosen theme rather
+    than hard-coded ``green`` / ``red`` / ``white``.
+
+    Falls back to legible defaults when the user has not picked a default
+    theme yet, or the theme does not define ``value_*`` slots:
+
+    * ``positive`` → ``green``
+    * ``negative`` → ``red``
+    * ``neutral``  → ``white``
+
+    The returned colours are CSS hex strings (e.g. ``"#a6e3a1"``) when read
+    from a theme; the fallbacks are Rich named colours. Both forms render
+    fine in Rich console output and Tk widget ``fg``/``bg``.
+    """
+    out: Dict[str, str] = {"positive": "green",
+                            "negative": "red",
+                            "neutral": "white"}
+    theme = load_default_theme()
+    if theme is None:
+        return out
+    for area, key in (("value_positive", "positive"),
+                       ("value_negative", "negative"),
+                       ("value_neutral", "neutral")):
+        s = theme.styles.get(area)
+        if s and s.fg:
+            out[key] = s.fg
+    return out
+
+
+# ---------------------------------------------------------------------------
 # Suite hook
 # ---------------------------------------------------------------------------
 
